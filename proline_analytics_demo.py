@@ -645,7 +645,7 @@ if view=="Summary":
                     if v=="Medium": return "background-color:#fef8f0;color:#e65100;font-weight:600;border-left:4px solid #f28e2b;padding-left:8px;"
                     if v=="Low": return "background-color:#f0f7f0;color:#2e7d32;font-weight:600;border-left:4px solid #59a14f;padding-left:8px;"
                     return ""
-                st.dataframe(adf.style.applymap(_pc,subset=["Priority"]),use_container_width=True,hide_index=True)
+                st.dataframe(adf.style.map(_pc,subset=["Priority"]),use_container_width=True,hide_index=True)
             else: st.info("No action items.")
     summary_df=query_summary(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,components_sel,bl)
     sdd=summary_df.drop(columns=["TotalPlacementCost","SuccessfulCount"],errors="ignore").reset_index(drop=True)
