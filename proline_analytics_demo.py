@@ -802,28 +802,19 @@ with st.expander("⬇️ Export to Excel"):
                 spf = spf[cols]
                 for r in dataframe_to_rows(spf, index=False, header=True):
                     ws4.append(r)
-            from openpyxl.worksheet.table import Table, TableStyleInfo
             from openpyxl.utils import get_column_letter
-            def _format_sheet(ws, start_row=1, end_row=None):
-                """Auto-fit column widths and add table formatting from start_row to end_row."""
-                max_r = end_row if end_row is not None else ws.max_row
-                if max_r < start_row + 1 or ws.max_column < 1:
-                    return
+            def _auto_width(ws):
+                """Auto-fit column widths to content."""
                 for col_idx in range(1, ws.max_column + 1):
                     max_width = 0
-                    for row_idx in range(start_row, max_r + 1):
+                    for row_idx in range(1, ws.max_row + 1):
                         cell_val = ws.cell(row=row_idx, column=col_idx).value
                         if cell_val is not None:
                             max_width = max(max_width, len(str(cell_val)))
                     ws.column_dimensions[get_column_letter(col_idx)].width = min(max_width + 4, 55)
-                tbl_ref = f"A{start_row}:{get_column_letter(ws.max_column)}{max_r}"
-                import random as _rand
-                tbl = Table(displayName=f"{ws.title.replace(' ', '')}_R{start_row}_{_rand.randint(1000,9999)}", ref=tbl_ref)
-                tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-                ws.add_table(tbl)
-            # Format all sheets
+            # Auto-width all sheets
             for ws in [ws1, ws2, ws3, ws4]:
-                _format_sheet(ws, 1)
+                _auto_width(ws)
             import io as _io
             bio = _io.BytesIO()
             wb.save(bio)
