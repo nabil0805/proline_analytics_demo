@@ -549,6 +549,13 @@ dt_end = _wrap_datetime(dt_end)
 st.caption("C2=Failed vision before electrical | C3=Failed vision after electrical | C4=Failed electrical test | C5=Component lost | C6=Not picked up by machine | C7=Failed vision before pickup")
 vo=["Summary","Successful Placements","Spit Events","Heatmap of Trolleys and Slots","Repeated Locations","Missing BOM Costs"]
 if st.session_state.get("compare_mode",False) and compare_period_b is not None: vo=["📊 Period Comparison"]+vo
+st.markdown("""<style>
+    div[data-testid="stSelectbox"] label p, label[data-testid="stWidgetLabel"] p {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        color: #1B3A5C !important;
+    }
+</style>""", unsafe_allow_html=True)
 view=st.selectbox("Analysis view",vo,index=0)
 bl=get_bom_lookup()
 
@@ -700,9 +707,11 @@ elif view=="Successful Placements":
                 if sf: st.plotly_chart(sf,use_container_width=True)
     st.subheader("Successful Placements Table")
     spd=query_successful_placements(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,components_sel,bl)
-    spd["TotalPlacementCost"]=query_total_placement_cost(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,bl)
+    tpc_val_ui=query_total_placement_cost(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,bl)
     spd["UnitCost"]=spd["Component"].map(lambda c:float(bl.get(c.strip().upper(),0.0))); spd["TotalCost"]=spd["SuccessfulCount"]*spd["UnitCost"]
-    st.dataframe(spd,use_container_width=True)
+    spd["TotalPlacementCost"]=tpc_val_ui
+    cols_ordered = [c for c in spd.columns if c != "TotalPlacementCost"] + ["TotalPlacementCost"]
+    st.dataframe(spd[cols_ordered],use_container_width=True)
 
 elif view=="Spit Events":
     edf=query_events(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,components_sel,bl)
@@ -750,6 +759,51 @@ elif view=="Repeated Locations":
 
 elif view=="Missing BOM Costs":
     st.dataframe(query_missing_costs(DEMO_CONN,dt_start,dt_end,boards_sel,mos_sel,machines_sel,components_sel,bl),use_container_width=True)
+
+with st.expander("⬇️ Export to Excel"):
+    if st.button("Prepare Excel Report", type="secondary", key="prepare_excel_report"):
+        with st.spinner("Building Excel report..."):
+            try:
+                from openpyxl import Workbook
+                from openpyxl.utils.dataframe import dataframe_to_rows
+            except ImportError:
+                st.error("openpyxl is required for Excel export. Add it to requirements.txt.")
+                st.stop()
+            wb = Workbook()
+            # Sheet 1: Summary
+            ws1 = wb.active
+            ws1.title = "Summary"
+            smd = query_summary(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
+            if not smd.empty:
+                smd_out = smd.drop(columns=["TotalPlacementCost", "SuccessfulCount"], errors="ignore").reset_index(drop=True)
+                for r in dataframe_to_rows(smd_out, index=False, header=True):
+                    ws1.append(r)
+            # Sheet 2: Spit Events
+            ws2 = wb.create_sheet("Spit Events")
+            evf = query_events(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
+            if not evf.empty:
+                evf2 = evf[evf["RejectCode"].isin(REJECT_CODES)].reset_index(drop=True)
+                for r in dataframe_to_rows(evf2, index=False, header=True):
+                    ws2.append(r)
+            # Sheet 3: Successful Placements
+            ws3 = wb.create_sheet("Successful Placements")
+            spf = query_successful_placements(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
+            if not spf.empty:
+                spf["UnitCost"] = spf["Component"].map(lambda c: float(bl.get(c.strip().upper(), 0.0)))
+                spf["TotalCost"] = spf["SuccessfulCount"] * spf["UnitCost"]
+                tpc_val = query_total_placement_cost(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, bl)
+                spf["TotalPlacementCost"] = tpc_val
+                cols = [c for c in spf.columns if c != "TotalPlacementCost"] + ["TotalPlacementCost"]
+                spf = spf[cols]
+                for r in dataframe_to_rows(spf, index=False, header=True):
+                    ws3.append(r)
+            import io as _io
+            bio = _io.BytesIO()
+            wb.save(bio)
+            st.session_state["export_bytes"] = bio.getvalue()
+    if st.session_state.get("export_bytes"):
+        fname = f"proline_demo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        st.download_button("📥 Download Excel Report", data=st.session_state["export_bytes"], file_name=fname, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 st.markdown("---")
 st.caption("📣 This is a demonstration version using synthetic data. Contact nabil@pylinesolutions.co.uk to get the full version with your factory's real data.")
