@@ -550,15 +550,10 @@ st.caption("C2=Failed vision before electrical | C3=Failed vision after electric
 vo=["Summary","Successful Placements","Spit Events","Heatmap of Trolleys and Slots","Repeated Locations","Missing BOM Costs"]
 if st.session_state.get("compare_mode",False) and compare_period_b is not None: vo=["📊 Period Comparison"]+vo
 st.markdown("""<style>
-    #analysis-view-wrapper div[data-testid="stSelectbox"] label p {
-        font-size: 16px !important;
-        font-weight: 700 !important;
-        color: #1B3A5C !important;
-    }
-</style>""", unsafe_allow_html=True)
-st.markdown('<div id="analysis-view-wrapper">', unsafe_allow_html=True)
+    #av-wrapper div[data-testid="stSelectbox"] label p { font-size:16px !important;font-weight:700 !important;color:#1B3A5C !important; }
+</style><div id="av-wrapper" style="margin:0;padding:0;">""", unsafe_allow_html=True)
 view=st.selectbox("Analysis view",vo,index=0)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 bl=get_bom_lookup()
 
 prev_qctx=_shift_query_context_to_previous_period(st.session_state.payload)
@@ -787,8 +782,22 @@ with st.expander("⬇️ Export to Excel"):
                 evf2 = evf[evf["RejectCode"].isin(REJECT_CODES)].reset_index(drop=True)
                 for r in dataframe_to_rows(evf2, index=False, header=True):
                     ws2.append(r)
-            # Sheet 3: Successful Placements
+            # Sheet 3: Successful Placements (two tables)
             ws3 = wb.create_sheet("Successful Placements")
+            current_row = 1
+            # Table 1: Spit to Success % by Component
+            rtf = query_success_ratio(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
+            if not rtf.empty:
+                rt_out = rtf[["Component","Description","SuccessfulCount","Spits","SpitToSuccessPct"]].sort_values(
+                    ["SpitToSuccessPct","Spits"], ascending=[False,False]).reset_index(drop=True)
+                for r in dataframe_to_rows(rt_out, index=False, header=True):
+                    ws3.append(r)
+                current_row = len(rt_out) + 2  # row after header+data
+            # Gap rows between tables (3 blank rows)
+            for _ in range(3):
+                ws3.append([])
+            current_row = ws3.max_row + 1  # first row of table 2
+            # Table 2: Successful Placements
             spf = query_successful_placements(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
             if not spf.empty:
                 spf["UnitCost"] = spf["Component"].map(lambda c: float(bl.get(c.strip().upper(), 0.0)))
@@ -801,20 +810,28 @@ with st.expander("⬇️ Export to Excel"):
                     ws3.append(r)
             from openpyxl.worksheet.table import Table, TableStyleInfo
             from openpyxl.utils import get_column_letter
-            # Auto-fit column widths and format as Tables
-            for ws in [ws1, ws2, ws3]:
+            def _format_sheet(ws, start_row=1):
+                """Auto-fit column widths and add table formatting from start_row."""
+                max_row = ws.max_row
+                if max_row < start_row + 1:
+                    return
                 for col_idx in range(1, ws.max_column + 1):
                     max_width = 0
-                    for row_idx in range(1, ws.max_row + 1):
+                    for row_idx in range(start_row, max_row + 1):
                         cell_val = ws.cell(row=row_idx, column=col_idx).value
                         if cell_val is not None:
                             max_width = max(max_width, len(str(cell_val)))
                     ws.column_dimensions[get_column_letter(col_idx)].width = min(max_width + 4, 55)
-                if ws.max_row > 1 and ws.max_column > 0:
-                    tbl_ref = f"A1:{get_column_letter(ws.max_column)}{ws.max_row}"
-                    tbl = Table(displayName=ws.title.replace(" ", ""), ref=tbl_ref)
-                    tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-                    ws.add_table(tbl)
+                tbl_ref = f"A{start_row}:{get_column_letter(ws.max_column)}{max_row}"
+                tbl = Table(displayName=f"Tbl{start_row}", ref=tbl_ref)
+                tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+                ws.add_table(tbl)
+            # Format Sheet 1 and Sheet 2 as before
+            for ws in [ws1, ws2]:
+                _format_sheet(ws, 1)
+            # Format Sheet 3 as two separate tables
+            _format_sheet(ws3, 1)
+            _format_sheet(ws3, current_row)
             import io as _io
             bio = _io.BytesIO()
             wb.save(bio)
