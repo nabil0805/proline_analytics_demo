@@ -352,6 +352,9 @@ def _shift_query_context_to_previous_period(qctx):
     dt_start=datetime.fromisoformat(qctx["dt_start"]) if qctx.get("dt_start") else None
     dt_end=datetime.fromisoformat(qctx["dt_end"]) if qctx.get("dt_end") else None
     if dt_start is None or dt_end is None or dt_end<=dt_start: return None
+    # Wrap dates into demo window so previous period aligns with available data
+    dt_start = _wrap_datetime(dt_start)
+    dt_end = _wrap_datetime(dt_end)
     window=dt_end-dt_start; prev_end=dt_start; prev_start=dt_start-window
     return {"dt_start":prev_start.isoformat(sep=" "),"dt_end":prev_end.isoformat(sep=" "),
             "boards":list(qctx.get("boards",[])),"mos":list(qctx.get("mos",[])),
