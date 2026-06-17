@@ -792,11 +792,11 @@ with st.expander("⬇️ Export to Excel"):
                     ["SpitToSuccessPct","Spits"], ascending=[False,False]).reset_index(drop=True)
                 for r in dataframe_to_rows(rt_out, index=False, header=True):
                     ws3.append(r)
-                current_row = len(rt_out) + 2  # row after header+data
+                table1_end = len(rt_out) + 1  # last row of table 1
             # Gap rows between tables (3 blank rows)
             for _ in range(3):
                 ws3.append([])
-            current_row = ws3.max_row + 1  # first row of table 2
+            table2_start = ws3.max_row + 1  # first row of table 2
             # Table 2: Successful Placements
             spf = query_successful_placements(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
             if not spf.empty:
@@ -810,19 +810,19 @@ with st.expander("⬇️ Export to Excel"):
                     ws3.append(r)
             from openpyxl.worksheet.table import Table, TableStyleInfo
             from openpyxl.utils import get_column_letter
-            def _format_sheet(ws, start_row=1):
-                """Auto-fit column widths and add table formatting from start_row."""
-                max_row = ws.max_row
-                if max_row < start_row + 1:
+            def _format_sheet(ws, start_row=1, end_row=None):
+                """Auto-fit column widths and add table formatting from start_row to end_row."""
+                max_r = end_row if end_row is not None else ws.max_row
+                if max_r < start_row + 1 or ws.max_column < 1:
                     return
                 for col_idx in range(1, ws.max_column + 1):
                     max_width = 0
-                    for row_idx in range(start_row, max_row + 1):
+                    for row_idx in range(start_row, max_r + 1):
                         cell_val = ws.cell(row=row_idx, column=col_idx).value
                         if cell_val is not None:
                             max_width = max(max_width, len(str(cell_val)))
                     ws.column_dimensions[get_column_letter(col_idx)].width = min(max_width + 4, 55)
-                tbl_ref = f"A{start_row}:{get_column_letter(ws.max_column)}{max_row}"
+                tbl_ref = f"A{start_row}:{get_column_letter(ws.max_column)}{max_r}"
                 import random as _rand
                 tbl = Table(displayName=f"{ws.title.replace(' ', '')}_R{start_row}_{_rand.randint(1000,9999)}", ref=tbl_ref)
                 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
@@ -830,9 +830,9 @@ with st.expander("⬇️ Export to Excel"):
             # Format Sheet 1 and Sheet 2 as before
             for ws in [ws1, ws2]:
                 _format_sheet(ws, 1)
-            # Format Sheet 3 as two separate tables
-            _format_sheet(ws3, 1)
-            _format_sheet(ws3, current_row)
+            # Format Sheet 3 as two separate, non-overlapping tables
+            _format_sheet(ws3, 1, table1_end)
+            _format_sheet(ws3, table2_start)
             import io as _io
             bio = _io.BytesIO()
             wb.save(bio)
