@@ -823,7 +823,8 @@ with st.expander("⬇️ Export to Excel"):
                             max_width = max(max_width, len(str(cell_val)))
                     ws.column_dimensions[get_column_letter(col_idx)].width = min(max_width + 4, 55)
                 tbl_ref = f"A{start_row}:{get_column_letter(ws.max_column)}{max_row}"
-                tbl = Table(displayName=f"Tbl{start_row}", ref=tbl_ref)
+                import random as _rand
+                tbl = Table(displayName=f"{ws.title.replace(' ', '')}_R{start_row}_{_rand.randint(1000,9999)}", ref=tbl_ref)
                 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
                 ws.add_table(tbl)
             # Format Sheet 1 and Sheet 2 as before
