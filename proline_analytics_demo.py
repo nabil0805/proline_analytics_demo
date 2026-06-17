@@ -341,6 +341,13 @@ def query_spit_timeline(conn,dt_start,dt_end,boards,mos,machines,components):
     else: be="substr(file_dt,1,10)||' 00:00:00'"
     return pd.read_sql_query(f"SELECT {be} AS Bucket,COUNT(*) AS Spits FROM events" + (" WHERE "+" AND ".join(w) if w else "") + " GROUP BY Bucket ORDER BY Bucket",conn,params=p)
 
+def _wrap_datetime(dt):
+    """Map any datetime into the 30-day demo data window (2026-05-11 to 2026-06-10).
+    Recycles the same 30 days of synthetic data for any selected date."""
+    anchor = date(2026, 5, 11)
+    offset = (dt.date() - anchor).days % 30
+    return datetime.combine(anchor + timedelta(days=offset), dt.time())
+
 def _shift_query_context_to_previous_period(qctx):
     dt_start=datetime.fromisoformat(qctx["dt_start"]) if qctx.get("dt_start") else None
     dt_end=datetime.fromisoformat(qctx["dt_end"]) if qctx.get("dt_end") else None
@@ -532,6 +539,9 @@ payload=st.session_state.payload
 dt_start=datetime.fromisoformat(payload["dt_start"]); dt_end=datetime.fromisoformat(payload["dt_end"])
 boards_sel=payload.get("boards",[]); mos_sel=payload.get("mos",[])
 machines_sel=payload.get("machines",[]); components_sel=payload.get("components",[])
+# Wrap dates into the 30-day demo data window (2026-05-11 to 2026-06-10)
+dt_start = _wrap_datetime(dt_start)
+dt_end = _wrap_datetime(dt_end)
 
 st.caption("C2=Failed vision before electrical | C3=Failed vision after electrical | C4=Failed electrical test | C5=Component lost | C6=Not picked up by machine | C7=Failed vision before pickup")
 vo=["Summary","Successful Placements","Spit Events","Heatmap of Trolleys and Slots","Repeated Locations","Missing BOM Costs"]
@@ -634,7 +644,7 @@ if view=="Summary":
         with k4: _kpi("Worst Component",wc,f"£{overview.get('worst_component_cost',0):,.2f} loss","warn")
         mc1,mc2=st.columns([1.1,1.4])
         with mc1:
-           
+            st.caption(f"Worst hotspot (cost): {overview.get('worst_hotspot','-')} | £{overview.get('worst_hotspot_cost',0):,.2f} loss")
             bbm=overview.get("boards_by_machine_df",pd.DataFrame())
             if not bbm.empty: st.caption("Boards by machine"); st.dataframe(bbm,use_container_width=True,hide_index=True,column_config={"BoardsRun":st.column_config.NumberColumn("Boards",format="%d")})
         with mc2:
