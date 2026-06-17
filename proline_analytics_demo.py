@@ -782,22 +782,16 @@ with st.expander("⬇️ Export to Excel"):
                 evf2 = evf[evf["RejectCode"].isin(REJECT_CODES)].reset_index(drop=True)
                 for r in dataframe_to_rows(evf2, index=False, header=True):
                     ws2.append(r)
-            # Sheet 3: Successful Placements (two tables)
-            ws3 = wb.create_sheet("Successful Placements")
-            current_row = 1
-            # Table 1: Spit to Success % by Component
+            # Sheet 3: Spit to Success % by Component
+            ws3 = wb.create_sheet("Spit to Success %")
             rtf = query_success_ratio(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
             if not rtf.empty:
                 rt_out = rtf[["Component","Description","SuccessfulCount","Spits","SpitToSuccessPct"]].sort_values(
                     ["SpitToSuccessPct","Spits"], ascending=[False,False]).reset_index(drop=True)
                 for r in dataframe_to_rows(rt_out, index=False, header=True):
                     ws3.append(r)
-                table1_end = len(rt_out) + 1  # last row of table 1
-            # Gap rows between tables (3 blank rows)
-            for _ in range(3):
-                ws3.append([])
-            table2_start = ws3.max_row + 1  # first row of table 2
-            # Table 2: Successful Placements
+            # Sheet 4: Successful Placements
+            ws4 = wb.create_sheet("Successful Placements")
             spf = query_successful_placements(DEMO_CONN, dt_start, dt_end, boards_sel, mos_sel, machines_sel, components_sel, bl)
             if not spf.empty:
                 spf["UnitCost"] = spf["Component"].map(lambda c: float(bl.get(c.strip().upper(), 0.0)))
@@ -807,7 +801,7 @@ with st.expander("⬇️ Export to Excel"):
                 cols = [c for c in spf.columns if c != "TotalPlacementCost"] + ["TotalPlacementCost"]
                 spf = spf[cols]
                 for r in dataframe_to_rows(spf, index=False, header=True):
-                    ws3.append(r)
+                    ws4.append(r)
             from openpyxl.worksheet.table import Table, TableStyleInfo
             from openpyxl.utils import get_column_letter
             def _format_sheet(ws, start_row=1, end_row=None):
@@ -827,12 +821,9 @@ with st.expander("⬇️ Export to Excel"):
                 tbl = Table(displayName=f"{ws.title.replace(' ', '')}_R{start_row}_{_rand.randint(1000,9999)}", ref=tbl_ref)
                 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
                 ws.add_table(tbl)
-            # Format Sheet 1 and Sheet 2 as before
-            for ws in [ws1, ws2]:
+            # Format all sheets
+            for ws in [ws1, ws2, ws3, ws4]:
                 _format_sheet(ws, 1)
-            # Format Sheet 3 as two separate, non-overlapping tables
-            _format_sheet(ws3, 1, table1_end)
-            _format_sheet(ws3, table2_start)
             import io as _io
             bio = _io.BytesIO()
             wb.save(bio)
