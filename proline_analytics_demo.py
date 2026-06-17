@@ -550,13 +550,15 @@ st.caption("C2=Failed vision before electrical | C3=Failed vision after electric
 vo=["Summary","Successful Placements","Spit Events","Heatmap of Trolleys and Slots","Repeated Locations","Missing BOM Costs"]
 if st.session_state.get("compare_mode",False) and compare_period_b is not None: vo=["📊 Period Comparison"]+vo
 st.markdown("""<style>
-    div[data-testid="stSelectbox"] label p, label[data-testid="stWidgetLabel"] p {
+    #analysis-view-wrapper div[data-testid="stSelectbox"] label p {
         font-size: 16px !important;
         font-weight: 700 !important;
         color: #1B3A5C !important;
     }
 </style>""", unsafe_allow_html=True)
+st.markdown('<div id="analysis-view-wrapper">', unsafe_allow_html=True)
 view=st.selectbox("Analysis view",vo,index=0)
+st.markdown('</div>', unsafe_allow_html=True)
 bl=get_bom_lookup()
 
 prev_qctx=_shift_query_context_to_previous_period(st.session_state.payload)
@@ -797,6 +799,22 @@ with st.expander("⬇️ Export to Excel"):
                 spf = spf[cols]
                 for r in dataframe_to_rows(spf, index=False, header=True):
                     ws3.append(r)
+            from openpyxl.worksheet.table import Table, TableStyleInfo
+            from openpyxl.utils import get_column_letter
+            # Auto-fit column widths and format as Tables
+            for ws in [ws1, ws2, ws3]:
+                for col_idx in range(1, ws.max_column + 1):
+                    max_width = 0
+                    for row_idx in range(1, ws.max_row + 1):
+                        cell_val = ws.cell(row=row_idx, column=col_idx).value
+                        if cell_val is not None:
+                            max_width = max(max_width, len(str(cell_val)))
+                    ws.column_dimensions[get_column_letter(col_idx)].width = min(max_width + 4, 55)
+                if ws.max_row > 1 and ws.max_column > 0:
+                    tbl_ref = f"A1:{get_column_letter(ws.max_column)}{ws.max_row}"
+                    tbl = Table(displayName=ws.title.replace(" ", ""), ref=tbl_ref)
+                    tbl.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+                    ws.add_table(tbl)
             import io as _io
             bio = _io.BytesIO()
             wb.save(bio)
