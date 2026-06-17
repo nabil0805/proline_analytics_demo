@@ -651,7 +651,7 @@ if view=="Summary":
         with k4: _kpi("Worst Component",wc,f"£{overview.get('worst_component_cost',0):,.2f} loss","warn")
         mc1,mc2=st.columns([1.1,1.4])
         with mc1:
-            st.caption(f"Worst hotspot (cost): {overview.get('worst_hotspot','-')} | £{overview.get('worst_hotspot_cost',0):,.2f} loss")
+           
             bbm=overview.get("boards_by_machine_df",pd.DataFrame())
             if not bbm.empty: st.caption("Boards by machine"); st.dataframe(bbm,use_container_width=True,hide_index=True,column_config={"BoardsRun":st.column_config.NumberColumn("Boards",format="%d")})
         with mc2:
